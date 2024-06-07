@@ -1,0 +1,78 @@
+-- URL для поиска музыки
+local searchUrl = "https://search.roblox.com/catalog/json?Category=Audio&SortType=Relevance&Limit=10&Keyword="
+
+-- Переменная для хранения найденных треков
+local foundTracks = {}
+
+-- Функция для выполнения HTTP GET запроса
+local function httpGet(url)
+    local response = game:HttpGet(url)
+    return response
+end
+
+-- Функция для поиска музыки по названию
+local function findMusicByName(name)
+    -- Закодировать название музыки для использования в URL
+    local encodedName = game:GetService("HttpService"):UrlEncode(name)
+    local url = searchUrl .. encodedName
+    
+    -- Получить JSON ответ от API
+    local jsonResponse = httpGet(url)
+    
+    -- Преобразовать JSON ответ в таблицу Lua
+    local musicList = game:GetService("HttpService"):JSONDecode(jsonResponse)
+    
+    foundTracks = {} -- Очистить список найденных треков
+    
+    -- Итерировать по списку результатов и искать совпадения по названию
+    for i, music in ipairs(musicList) do
+        if string.find(string.lower(music.Name), string.lower(name)) then
+            table.insert(foundTracks, {index = i, name = music.Name, id = music.AssetId})
+        end
+    end
+    
+    return foundTracks -- Вернуть список найденных треков
+end
+
+-- Функция для воспроизведения трека по его ID
+local function playMusicByID(id)
+    game.Players:Chat(":music " .. id)
+end
+
+-- Функция для обработки команд чата локального игрока
+local function onLocalPlayerChatted(message)
+    -- Проверить, является ли сообщение командой !find
+    if string.sub(message, 1, 6) == "!find " then
+        -- Извлечь название музыки из команды
+        local musicName = string.sub(message, 7)
+        
+        -- Найти музыку по названию
+        local foundMusic = findMusicByName(musicName)
+        
+        -- Если найдена одна музыка, воспроизвести её
+        if foundMusic and #foundMusic == 1 then
+            playMusicByID(foundMusic[1].id)
+        elseif foundMusic and #foundMusic > 1 then
+            -- Если найдено несколько музыкальных треков, вывести список в консоль и отправить сообщение в чат
+            print("Found music tracks:")
+            for _, track in ipairs(foundMusic) do
+                print(track.index .. ". " .. track.name)
+            end
+            game.Players:Chat(":tmpm 3 me Нашлось больше одного трека. Загляни в консоль.")
+        else
+            warn("No music found for: " .. musicName)
+        end
+    elseif string.sub(message, 1, 6) == "!pick " then
+        -- Проверить, является ли сообщение командой !pick
+        local index = tonumber(string.match(message, "!pick (%d+)"))
+        if index and index >= 1 and index <= #foundTracks then
+            -- Воспроизвести выбранный трек
+            playMusicByID(foundTracks[index].id)
+        else
+            print("Invalid track number. Please enter a valid track index.")
+        end
+    end
+end
+
+-- Подписаться на событие чата локального игрока
+game.Players.LocalPlayer.Chatted:Connect(onLocalPlayerChatted)
